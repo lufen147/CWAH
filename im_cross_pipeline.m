@@ -42,6 +42,7 @@ function [features_data] = im_cross_pipeline(features_data, eval, opts)
     %% pca which rejia proposed pipeline
     if ismember(opts.features.pipeline_model, ["pca_relja", "pca_whitening_relja"])
         x_data = features_data;
+        x_data = x_data';   % require input matrix is ndims * nvectors, eg. oxford input 512*5063        
         nPoints= size(x_data,2);
         nDims= size(x_data,1);
         if ~isfield(opts.features, 'dimension')
