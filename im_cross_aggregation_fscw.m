@@ -6,39 +6,47 @@ function Z = im_cross_aggregation_fscw(X)
     % 	Z: 1-D vector, aggregated by VLAD to local image feature
     
     load('opts');
-    for i = 1:allimagefeature
-        k = 60;
-        [height,width,channel] = size(X);
+    path = [opts.features.path, opts.file.fromat_common, opts.file.fromat_mat];
+    img_features = dir(path);
+    allimagefeature = numl(img_features);
+    if ~exist('index_temp')
+        for i = 1:allimagefeature
+            X = importdata([img_features(i).folder, '/', img_features(i).name]);
+            k = 60;
+            [height,width,channel] = size(X);
 
-        filter = zeros([height,width]);
-        var = zeros(1,channel);
-        for j=1:channel
-            var(1,j) = (std2(X(:,:,j)))^2;  
-        end
-        [~, ind] = sort(var,'descend');
-        for y=1:k
-            filter = filter + X(:,:,ind(y));
-        end
-        filter = filter./k;
+            filter = zeros([height,width]);
+            var = zeros(1,channel);
+            for j=1:channel
+                var(1,j) = (std2(X(:,:,j)))^2;  
+            end
+            [~, ind] = sort(var,'descend');
+            for y=1:k
+                filter = filter + X(:,:,ind(y));
+            end
+            filter = filter./k;
 
-        rst = zeros(1,channel);
-        for i=1:channel
-            X(:,:,i) = X(:,:,i).* filter;
+            rst = zeros(1,channel);
+            for i=1:channel
+                X(:,:,i) = X(:,:,i).* filter;
+            end
+            rst = reshape(sum(X,[1,2]),[1,channel]);
+            filter_features(i,:) = rst;
         end
-        rst = reshape(sum(X,[1,2]),[1,channel]);
-        filter_features(i,:) = rst;
-    end
-    
-    d = var(filter_features,0,1);
-    [~, var_index] = sort(d,'descend');
-    index = var_index;
-    
-    % pool reread from datasets
-    for i = 1:allimagefeature
-        [hei,wid,K] = size(pool5);    
-        S = zeros([hei,wid]);
+
+        d = var(filter_features,0,1);
+        [~, var_index] = sort(d,'descend');
+        index = var_index;
+        save('index_temp', 'index');
+    else
+        index_temp = load('index_temp');
+        index = index_temp.index;
+        b = 10;
         
-        X = pool5;
+        pool5 = X;
+        [hei,wid,K] = size(pool5);    
+        S = zeros([hei,wid]);        
+        
         [m,n,~]=size(X);
         rst = zeros(m,n);
         for y=1:b
@@ -47,14 +55,14 @@ function Z = im_cross_aggregation_fscw(X)
         z = sum(sum(rst.^2))^(1/2);
         rst = (rst/z).^(1/2);
         S = rst;
-        
+
         X = zeros([hei,wid,K]);
         for m=1:K
             X(:,:,m) = pool5(:,:,m).*S;
         end
+        
         arr = zeros([1,K]);
         C = zeros([1,K]);
-        
         [~,~,K] = size(X) ;
         X_sum =reshape(sum(X,[1,2]),[1,K]);
         X_sum = X_sum.^2;
@@ -67,42 +75,11 @@ function Z = im_cross_aggregation_fscw(X)
             end
         end
         C = X_sum;
-        
+
         X = reshape(sum(X,[1,2]),[1,K]);
         for m=1:length(C)
-            arr(m) = X(1,m)*C(1,m);
+            arr(m) = X(1,m) .* C(1,m);
         end
-        FSCW_features(i,:) = arr;        
+        Z = arr;    
     end
-end
-
-function S = spatial_weight(X)
-    a = 2;
-    b = 2;
-    S = sum(X, 1);
-    z = sum(sum(S.^a)).^(1./a);  % ? it is different to python after this line
-    if b ~= 1
-        S = (S ./ z).^(1./b);
-    else
-        S = S ./ z;
-    end
-end
-
-function C = channel_weight(X)
-    [K, h, w] = size(X);
-    area = h * w;
-    nonzeros = zeros(1,K);
-    for i = 1:K
-        nonzeros(i) = sum(X(i,:,:)~=0, [2, 3]) / area;
-    end
-    nzsum = sum(nonzeros);
-    for i = 1:K
-        d = nonzeros(i);
-        if d > 0
-            nonzeros(i) = log(nzsum / d);
-        else
-            nonzeros(i) = 0;
-        end
-    end
-    C = nonzeros;
 end
